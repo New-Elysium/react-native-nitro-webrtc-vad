@@ -20,6 +20,10 @@ react-native-nitro-webrtc-vad is a react native package built with Nitro
 bun add react-native-nitro-webrtc-vad react-native-nitro-modules
 ```
 
+Expo apps must use a prebuild/dev-client native build. Expo Go is not supported because this package contains native C/C++ code.
+
+For Expo prebuild/dev-client support, this package should remain installable through the normal React Native native dependency flow. See [Consumer Build Contract](docs/consumer-build-contract.md).
+
 ## Credits
 
 Bootstrapped with [create-nitro-module](https://github.com/patrickkabwe/create-nitro-module).

@@ -21,10 +21,12 @@
   ],
   "files": [
     "src",
+    "docs",
     "react-native.config.js",
     "lib",
     "nitrogen",
     "cpp",
+    "third_party",
     "nitro.json",
     "android/build.gradle",
     "android/fix-prefab.gradle",
@@ -36,7 +38,6 @@
     "ios/**/*.mm",
     "ios/**/*.cpp",
     "ios/**/*.swift",
-    "app.plugin.js",
     "*.podspec",
     "README.md"
   ],

@@ -14,7 +14,11 @@ namespace margelo::nitro::nitrowebrtcvad {
     HybridObject::loadHybridMethods();
     // load custom methods/properties
     registerHybrids(this, [](Prototype& prototype) {
-      prototype.registerHybridMethod("sum", &HybridNitroWebrtcVadSpec::sum);
+      prototype.registerHybridMethod("start", &HybridNitroWebrtcVadSpec::start);
+      prototype.registerHybridMethod("stop", &HybridNitroWebrtcVadSpec::stop);
+      prototype.registerHybridMethod("setListener", &HybridNitroWebrtcVadSpec::setListener);
+      prototype.registerHybridMethod("clearListener", &HybridNitroWebrtcVadSpec::clearListener);
+      prototype.registerHybridMethod("processFrame", &HybridNitroWebrtcVadSpec::processFrame);
     });
   }
 

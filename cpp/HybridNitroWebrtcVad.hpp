@@ -1,12 +1,41 @@
 #pragma once
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <string>
 #include <vector>
+#include <NitroModules/ArrayBuffer.hpp>
 #include "HybridNitroWebrtcVadSpec.hpp"
+
+struct WebRtcVadInst;
+typedef struct WebRtcVadInst VadInst;
 
 namespace margelo::nitro::nitrowebrtcvad {
 class HybridNitroWebrtcVad : public HybridNitroWebrtcVadSpec {
     public:
         HybridNitroWebrtcVad() : HybridObject(TAG), HybridNitroWebrtcVadSpec() {}
+        ~HybridNitroWebrtcVad() override;
        
-        double sum(double a, double b) override;
+        void start(double mode, double sampleRate, double frameMs, double speechStartFrames, double speechEndFrames) override;
+        void stop() override;
+        void setListener(const std::function<void(const std::string&, double)>& listener) override;
+        void clearListener() override;
+        bool processFrame(const std::shared_ptr<ArrayBuffer>& pcm16) override;
+
+    private:
+        void resetVadLocked();
+        void emitEvent(const std::string& eventType);
+
+        std::mutex mutex_;
+        VadInst* vad_ = nullptr;
+        int sampleRate_ = 16000;
+        size_t frameSamples_ = 320;
+        int speechStartFrames_ = 3;
+        int speechEndFrames_ = 8;
+        int speechFrames_ = 0;
+        int silenceFrames_ = 0;
+        bool isRunning_ = false;
+        bool isSpeechActive_ = false;
+        std::function<void(const std::string&, double)> listener_;
     };
 } // namespace margelo::nitro::nitrowebrtcvad

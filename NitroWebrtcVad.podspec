@@ -20,7 +20,16 @@ Pod::Spec.new do |s|
     "ios/**/*.{m,mm}",
     # Implementation (C++ objects)
     "cpp/**/*.{hpp,cpp}",
+    # Vendored WebRTC VAD C/C++ source
+    "third_party/webrtcvad/webrtc/**/*.h",
+    "third_party/webrtcvad/webrtc/common_audio/**/*.c",
+    "third_party/webrtcvad/webrtc/rtc_base/checks.cc",
   ]
+
+  s.pod_target_xcconfig = {
+    "HEADER_SEARCH_PATHS" => "\"$(PODS_TARGET_SRCROOT)/third_party/webrtcvad\"",
+    "GCC_PREPROCESSOR_DEFINITIONS" => "$(inherited) WEBRTC_POSIX=1"
+  }
 
   load 'nitrogen/generated/ios/NitroWebrtcVad+autolinking.rb'
   add_nitrogen_files(s)

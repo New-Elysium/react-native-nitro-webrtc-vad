@@ -15,7 +15,9 @@
 
 
 
-
+#include <string>
+#include <functional>
+#include <NitroModules/ArrayBuffer.hpp>
 
 namespace margelo::nitro::nitrowebrtcvad {
 
@@ -48,7 +50,11 @@ namespace margelo::nitro::nitrowebrtcvad {
 
     public:
       // Methods
-      virtual double sum(double num1, double num2) = 0;
+      virtual void start(double mode, double sampleRate, double frameMs, double speechStartFrames, double speechEndFrames) = 0;
+      virtual void stop() = 0;
+      virtual void setListener(const std::function<void(const std::string& /* eventType */, double /* timestampMs */)>& listener) = 0;
+      virtual void clearListener() = 0;
+      virtual bool processFrame(const std::shared_ptr<ArrayBuffer>& pcm16) = 0;
 
     protected:
       // Hybrid Setup

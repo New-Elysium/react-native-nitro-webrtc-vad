@@ -1,5 +1,15 @@
 import type { HybridObject } from 'react-native-nitro-modules'
 
 export interface NitroWebrtcVad extends HybridObject<{ ios: 'c++', android: 'c++' }> {
-  sum(num1: number, num2: number): number
+  start(
+    mode: number,
+    sampleRate: number,
+    frameMs: number,
+    speechStartFrames: number,
+    speechEndFrames: number
+  ): void
+  stop(): void
+  setListener(listener: (eventType: string, timestampMs: number) => void): void
+  clearListener(): void
+  processFrame(pcm16: ArrayBuffer): boolean
 }
