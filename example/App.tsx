@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Button, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Button, PermissionsAndroid, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { NitroWebrtcVad, type VadEventType } from 'react-native-nitro-webrtc-vad';
 
 function App(): React.JSX.Element {
@@ -13,39 +13,78 @@ function App(): React.JSX.Element {
     setEvents((current) => [message, ...current].slice(0, 8));
   };
 
-  const start = () => {
-    NitroWebrtcVad.setListener((eventType: VadEventType, timestampMs: number) => {
-      addLog(`${eventType} ${timestampMs}`);
-    });
-    NitroWebrtcVad.start();
-    setIsRunning(true);
-    setLastResult('started');
-    addLog('started');
+  const requestMicrophonePermission = async () => {
+    if (Platform.OS !== 'android') {
+      return true;
+    }
+
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  };
+
+  const formatError = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+  const start = async () => {
+    try {
+      const hasPermission = await requestMicrophonePermission();
+      if (!hasPermission) {
+        setLastResult('microphone permission denied');
+        addLog('microphone permission denied');
+        return;
+      }
+
+      NitroWebrtcVad.setListener((eventType: VadEventType, timestampMs: number) => {
+        setLastResult(eventType);
+        addLog(`${eventType} ${timestampMs}`);
+      });
+      NitroWebrtcVad.start();
+      setIsRunning(true);
+      setLastResult('started');
+      addLog('started');
+    } catch (error) {
+      const message = `start error: ${formatError(error)}`;
+      NitroWebrtcVad.clearListener();
+      setIsRunning(false);
+      setLastResult(message);
+      addLog(message);
+    }
   };
 
   const processSilence = () => {
-    const isSpeech = NitroWebrtcVad.processFrame(silenceFrame);
-    setLastResult(isSpeech ? 'speech' : 'silence');
-    addLog(`processFrame: ${isSpeech ? 'speech' : 'silence'}`);
+    try {
+      const isSpeech = NitroWebrtcVad.processFrame(silenceFrame);
+      setLastResult(isSpeech ? 'speech' : 'silence');
+      addLog(`processFrame: ${isSpeech ? 'speech' : 'silence'}`);
+    } catch (error) {
+      const message = `processFrame error: ${formatError(error)}`;
+      setLastResult(message);
+      addLog(message);
+    }
   };
 
   const stop = () => {
-    NitroWebrtcVad.stop();
-    NitroWebrtcVad.clearListener();
-    setIsRunning(false);
-    setLastResult('stopped');
-    addLog('stopped');
+    try {
+      NitroWebrtcVad.stop();
+      NitroWebrtcVad.clearListener();
+      setIsRunning(false);
+      setLastResult('stopped');
+      addLog('stopped');
+    } catch (error) {
+      const message = `stop error: ${formatError(error)}`;
+      setLastResult(message);
+      addLog(message);
+    }
   };
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Nitro WebRTC VAD Core</Text>
+      <Text style={styles.title}>Nitro WebRTC VAD</Text>
       <Text style={styles.status}>Status: {isRunning ? 'running' : 'stopped'}</Text>
       <Text style={styles.status}>Last result: {lastResult}</Text>
 
       <View style={styles.actions}>
-        <Button title="Start VAD core" onPress={start} />
-        <Button title="Process silence frame" onPress={processSilence} disabled={!isRunning} />
+        <Button title="Start mic VAD" onPress={start} disabled={isRunning} />
+        <Button title="Process test silence frame" onPress={processSilence} disabled={!isRunning} />
         <Button title="Stop" onPress={stop} disabled={!isRunning} />
       </View>
 

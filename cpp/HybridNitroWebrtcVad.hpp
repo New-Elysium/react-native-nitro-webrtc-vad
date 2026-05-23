@@ -21,8 +21,13 @@ class HybridNitroWebrtcVad : public HybridNitroWebrtcVadSpec {
         void setListener(const std::function<void(const std::string&, double)>& listener) override;
         void clearListener() override;
         bool processFrame(const std::shared_ptr<ArrayBuffer>& pcm16) override;
+        bool processAudioInputFrame(const int16_t* samples, size_t sampleCount);
+        void handlePlatformAudioInputStopped();
 
     private:
+        void setActiveAudioInputInstance();
+        void clearActiveAudioInputInstance();
+        void processVadResultLocked(bool isSpeech, bool& shouldEmitSpeechStart, bool& shouldEmitSpeechEnd);
         void resetVadLocked();
         void emitEvent(const std::string& eventType);
 
