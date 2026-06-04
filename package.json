@@ -1,7 +1,7 @@
 {
   "name": "react-native-nitro-webrtc-vad",
   "version": "0.1.0",
-  "description": "react-native-nitro-webrtc-vad is a react native package built with Nitro",
+  "description": "Fast native WebRTC voice activity detection for React Native, built with Nitro Modules.",
   "main": "./lib/commonjs/index.js",
   "module": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -17,7 +17,16 @@
   },
   "keywords": [
     "react-native",
-    "react-native-nitro-webrtc-vad"
+    "react-native-nitro-webrtc-vad",
+    "nitro-modules",
+    "webrtc",
+    "webrtc-vad",
+    "vad",
+    "voice-activity-detection",
+    "speech-detection",
+    "microphone",
+    "ios",
+    "android"
   ],
   "files": [
     "src",
