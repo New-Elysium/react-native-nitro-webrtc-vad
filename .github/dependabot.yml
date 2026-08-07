@@ -27,6 +27,9 @@ updates:
     labels:
       - 'dependencies'
       - 'ruby'
+    ignore:
+      # Intentionally pinned — newer concurrent-ruby breaks RN/CocoaPods builds.
+      - dependency-name: 'concurrent-ruby'
 
   - package-ecosystem: 'npm'
     directories:
