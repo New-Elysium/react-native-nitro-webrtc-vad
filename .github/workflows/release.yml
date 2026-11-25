@@ -2,6 +2,11 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Run semantic-release in dry-run mode (no publish, no GitHub release)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -18,38 +23,88 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+      # Required for npm provenance attestation.
       id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Setup Bun.js
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Cache bun dependencies
-        id: bun-cache
         uses: actions/cache@v4
         with:
           path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lockb') }}
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
             ${{ runner.os }}-bun-
 
       - name: Install npm dependencies (bun)
-        run: bun install
+        run: bun install --frozen-lockfile
+
+      - name: Verify native sources are committed
+        run: |
+          set -euo pipefail
+          missing=0
+          for f in \
+            nitro.json \
+            NitroWebrtcVad.podspec \
+            android/build.gradle \
+            android/CMakeLists.txt \
+            cpp/HybridNitroWebrtcVad.cpp \
+            nitrogen/generated/android/NitroWebrtcVad+autolinking.gradle \
+            nitrogen/generated/ios/NitroWebrtcVad+autolinking.rb \
+            nitrogen/generated/shared/c++/HybridNitroWebrtcVadSpec.cpp \
+            third_party/webrtcvad/webrtc/common_audio/vad/webrtc_vad.c; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Required file missing from the repository: $f"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Native sources are incomplete; run 'bun run codegen' and commit the result."
+            exit 1
+          fi
+
+      - name: Typecheck
+        run: bun run typecheck
 
       - name: Build lib
         run: bun run build
+
+      - name: Verify package contents
+        run: |
+          set -euo pipefail
+          npm pack --dry-run
+          for f in \
+            lib/commonjs/index.js \
+            lib/commonjs/package.json \
+            lib/module/index.js \
+            lib/module/package.json \
+            lib/typescript/commonjs/src/index.d.ts \
+            lib/typescript/module/src/index.d.ts; do
+            if ! npm pack --dry-run --json 2>/dev/null | grep -q "\"path\": \"$f\""; then
+              echo "::error::Expected file missing from the published tarball: $f"
+              exit 1
+            fi
+          done
 
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
+          NPM_CONFIG_REGISTRY: https://registry.npmjs.org/
           GIT_AUTHOR_NAME: ${{ github.actor }}
           GIT_AUTHOR_EMAIL: '${{ github.actor }}@users.noreply.github.com'
           GIT_COMMITTER_NAME: ${{ github.actor }}
           GIT_COMMITTER_EMAIL: '${{ github.actor }}@users.noreply.github.com'
-        run: bun release
+        run: bun run release -- ${{ inputs.dry-run && '--dry-run' || '' }}

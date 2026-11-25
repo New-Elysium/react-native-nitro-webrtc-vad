@@ -48,7 +48,13 @@ module.exports = {
         changelogFile: 'CHANGELOG.md',
       },
     ],
-    '@semantic-release/npm',
+    [
+      '@semantic-release/npm',
+      {
+        npmPublish: true,
+        npmRegistryUrl: 'https://registry.npmjs.org/',
+      },
+    ],
     '@semantic-release/github',
     [
       '@semantic-release/git',
