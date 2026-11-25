@@ -6,7 +6,7 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "react-native-nitro-webrtc-vad": ["../src"]
+      "@psync/webrtc-vad": ["../src"]
     }
   }
 }

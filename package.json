@@ -1,6 +1,6 @@
 {
-  "name": "react-native-nitro-webrtc-vad",
-  "version": "0.1.0",
+  "name": "@psync/webrtc-vad",
+  "version": "1.0.0",
   "description": "Fast native WebRTC voice activity detection for React Native, built with Nitro Modules.",
   "main": "./lib/commonjs/index.js",
   "module": "./lib/module/index.js",
@@ -17,7 +17,7 @@
   },
   "keywords": [
     "react-native",
-    "react-native-nitro-webrtc-vad",
+    "expo",
     "nitro-modules",
     "webrtc",
     "webrtc-vad",
@@ -53,11 +53,11 @@
   "workspaces": [
     "example"
   ],
-  "repository": "https://github.com/enfpdev/react-native-nitro-webrtc-vad.git",
+  "repository": "https://github.com/New-Elysium/react-native-nitro-webrtc-vad.git",
   "author": "enfpdev",
   "license": "MIT",
-  "bugs": "https://github.com/enfpdev/react-native-nitro-webrtc-vad/issues",
-  "homepage": "https://github.com/enfpdev/react-native-nitro-webrtc-vad#readme",
+  "bugs": "https://github.com/New-Elysium/react-native-nitro-webrtc-vad/issues",
+  "homepage": "https://github.com/New-Elysium/react-native-nitro-webrtc-vad#readme",
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org/"
@@ -68,11 +68,11 @@
     "@semantic-release/git": "^10.0.1",
     "@types/jest": "^29.5.12",
     "@types/react": "19.2.0",
-    "nitrogen": "0.35.7",
+    "nitrogen": "0.37.2",
     "react": "19.2.3",
     "react-native": "0.84.1",
     "react-native-builder-bob": "^0.40.18",
-    "react-native-nitro-modules": "0.35.7",
+    "react-native-nitro-modules": "0.37.2",
     "conventional-changelog-conventionalcommits": "^9.1.0",
     "semantic-release": "^25.0.3",
     "typescript": "^5.8.3"
@@ -80,7 +80,7 @@
   "peerDependencies": {
     "react": "*",
     "react-native": "*",
-    "react-native-nitro-modules": "*"
+    "react-native-nitro-modules": ">=0.37.2"
   },
   "eslintConfig": {
     "root": true,
