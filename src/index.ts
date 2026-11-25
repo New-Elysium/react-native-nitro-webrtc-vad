@@ -1,5 +1,10 @@
 import { NitroModules } from 'react-native-nitro-modules'
-import type { NitroWebrtcVad as NitroWebrtcVadSpec } from './specs/nitro-webrtc-vad.nitro'
+import type {
+  IosAudioSession,
+  NitroWebrtcVad as NitroWebrtcVadSpec,
+} from './specs/nitro-webrtc-vad.nitro'
+
+export type { IosAudioSession }
 
 const nativeNitroWebrtcVad =
   NitroModules.createHybridObject<NitroWebrtcVadSpec>('NitroWebrtcVad')
@@ -14,6 +19,11 @@ export type VadStartOptions = {
   frameMs?: number
   speechStartFrames?: number
   speechEndFrames?: number
+  /**
+   * iOS only. How the shared `AVAudioSession` is handled. Default: `'auto'`.
+   * See {@link IosAudioSession}.
+   */
+  iosAudioSession?: IosAudioSession
 }
 
 export const NitroWebrtcVad = {
@@ -23,7 +33,8 @@ export const NitroWebrtcVad = {
       options.sampleRate ?? 16000,
       options.frameMs ?? 20,
       options.speechStartFrames ?? 3,
-      options.speechEndFrames ?? 8
+      options.speechEndFrames ?? 8,
+      options.iosAudioSession ?? 'auto'
     )
   },
   stop() {

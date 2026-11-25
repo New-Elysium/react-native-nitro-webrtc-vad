@@ -10,6 +10,13 @@
 extern "C" void NitroWebrtcVadProcessAudioInputFrame(const int16_t* samples, size_t sampleCount);
 extern "C" void NitroWebrtcVadNotifyAudioInputStopped();
 
+// `AllowBluetooth` was renamed to `AllowBluetoothHFP` in the iOS 26 SDK.
+#if defined(__IPHONE_OS_VERSION_MAX_ALLOWED) && __IPHONE_OS_VERSION_MAX_ALLOWED >= 260000
+#define NITRO_WEBRTC_VAD_BLUETOOTH_HFP AVAudioSessionCategoryOptionAllowBluetoothHFP
+#else
+#define NITRO_WEBRTC_VAD_BLUETOOTH_HFP AVAudioSessionCategoryOptionAllowBluetooth
+#endif
+
 namespace {
 AVAudioEngine* engine = nil;
 AVAudioConverter* converter = nil;
@@ -20,6 +27,23 @@ int targetSampleRate = 16000;
 NSUInteger targetFrameSamples = 320;
 BOOL isRunning = NO;
 BOOL isInterrupted = NO;
+
+// Audio session handling.
+//
+// The AVAudioSession is shared by the whole app (expo-audio, react-native-webrtc, ...).
+// The VAD only *reads* from the microphone, so it must never take ownership of the
+// session: no category/mode/option changes, no preferred sample rate or IO buffer
+// changes, no output route changes and no deactivation while somebody else uses it.
+//
+// `manageSession == YES` ('auto'): if the session can not record yet, switch it to
+// PlayAndRecord (keeping playback on the speaker) and revert that change on stop.
+// `manageSession == NO` ('none'): never touch the session at all.
+BOOL manageSession = YES;
+BOOL didConfigureSession = NO;
+AVAudioSessionCategory savedCategory = nil;
+AVAudioSessionMode savedMode = nil;
+AVAudioSessionCategoryOptions savedOptions = 0;
+AVAudioSessionCategoryOptions appliedOptions = 0;
 
 NSError* AudioError(NSString* message) {
   return [NSError errorWithDomain:@"NitroWebrtcVadAudioInput" code:1 userInfo:@{NSLocalizedDescriptionKey: message}];
@@ -60,27 +84,86 @@ BOOL EnsurePermission(NSError** error) {
   return granted;
 }
 
-BOOL ConfigureSession(NSError** error) {
-  AVAudioSession* session = [AVAudioSession sharedInstance];
-  NSTimeInterval frameDuration = static_cast<NSTimeInterval>(targetFrameSamples) / targetSampleRate;
-  NSError* sessionError = nil;
-
-  BOOL ok = [session setCategory:AVAudioSessionCategoryPlayAndRecord
-                            mode:AVAudioSessionModeMeasurement
-                         options:AVAudioSessionCategoryOptionAllowBluetoothHFP |
-                                 AVAudioSessionCategoryOptionMixWithOthers
-                           error:&sessionError];
-  ok = ok && [session setPreferredSampleRate:targetSampleRate error:&sessionError];
-  ok = ok && [session setPreferredIOBufferDuration:frameDuration error:&sessionError];
-  ok = ok && [session setActive:YES error:&sessionError];
-
-  if (!ok && error != nullptr) {
-    *error = sessionError ?: AudioError(@"Failed to configure iOS audio session.");
-  }
-  return ok;
+BOOL CategoryAllowsRecording(AVAudioSessionCategory category) {
+  return [category isEqualToString:AVAudioSessionCategoryPlayAndRecord] ||
+         [category isEqualToString:AVAudioSessionCategoryRecord] ||
+         [category isEqualToString:AVAudioSessionCategoryMultiRoute];
 }
 
-void StopEngine(BOOL deactivateSession) {
+// Reverts the category change made by PrepareSession(), but only if nobody else has
+// reconfigured the session in the meantime. Never deactivates the session, since other
+// audio in the app (players, calls) may still be using it.
+void RestoreSession() {
+  if (!didConfigureSession) {
+    return;
+  }
+  didConfigureSession = NO;
+
+  AVAudioSession* session = [AVAudioSession sharedInstance];
+  BOOL untouchedSinceStart = [session.category isEqualToString:AVAudioSessionCategoryPlayAndRecord] &&
+                             [session.mode isEqualToString:AVAudioSessionModeDefault] &&
+                             session.categoryOptions == appliedOptions;
+  if (untouchedSinceStart && savedCategory != nil && savedMode != nil) {
+    [session setCategory:savedCategory mode:savedMode options:savedOptions error:nil];
+  }
+  savedCategory = nil;
+  savedMode = nil;
+}
+
+// Makes sure the shared session can record, touching it as little as possible.
+BOOL PrepareSession(NSError** error) {
+  AVAudioSession* session = [AVAudioSession sharedInstance];
+  NSError* sessionError = nil;
+
+  if (!CategoryAllowsRecording(session.category)) {
+    if (!manageSession) {
+      if (error != nullptr) {
+        *error = AudioError(@"The iOS audio session category does not allow recording. Configure a record-capable "
+                            @"session (e.g. expo-audio setAudioModeAsync({ allowsRecording: true })) before calling "
+                            @"start(), or use iosAudioSession: 'auto'.");
+      }
+      return NO;
+    }
+
+    savedCategory = session.category;
+    savedMode = session.mode;
+    savedOptions = session.categoryOptions;
+
+    // DefaultToSpeaker keeps playback on the loudspeaker. Without it PlayAndRecord
+    // routes all app audio to the earpiece.
+    AVAudioSessionCategoryOptions options = savedOptions |
+                                            AVAudioSessionCategoryOptionDefaultToSpeaker |
+                                            AVAudioSessionCategoryOptionMixWithOthers |
+                                            NITRO_WEBRTC_VAD_BLUETOOTH_HFP;
+    if (![session setCategory:AVAudioSessionCategoryPlayAndRecord
+                         mode:AVAudioSessionModeDefault
+                      options:options
+                        error:&sessionError]) {
+      savedCategory = nil;
+      savedMode = nil;
+      if (error != nullptr) {
+        *error = sessionError ?: AudioError(@"Failed to configure iOS audio session.");
+      }
+      return NO;
+    }
+    didConfigureSession = YES;
+    appliedOptions = session.categoryOptions;
+  }
+
+  if (manageSession) {
+    // No-op when the session is already active (e.g. during a call or playback).
+    if (![session setActive:YES error:&sessionError]) {
+      RestoreSession();
+      if (error != nullptr) {
+        *error = sessionError ?: AudioError(@"Failed to activate iOS audio session.");
+      }
+      return NO;
+    }
+  }
+  return YES;
+}
+
+void StopEngine() {
   if (engine != nil) {
     [engine.inputNode removeTapOnBus:0];
     [engine stop];
@@ -89,12 +172,6 @@ void StopEngine(BOOL deactivateSession) {
   converter = nil;
   outputFormat = nil;
   [pendingPcm setLength:0];
-
-  if (deactivateSession) {
-    [[AVAudioSession sharedInstance] setActive:NO
-                                   withOptions:AVAudioSessionSetActiveOptionNotifyOthersOnDeactivation
-                                         error:nil];
-  }
 }
 
 void ProcessInputBuffer(AVAudioPCMBuffer* inputBuffer) {
@@ -179,16 +256,19 @@ BOOL StartEngine(NSError** error) {
   return YES;
 }
 
+// Only rebuilds the engine (the input format may have changed). The audio session is
+// deliberately left alone so routing set by other code (speaker, Bluetooth) is kept.
 BOOL RestartEngine() {
-  StopEngine(NO);
+  StopEngine();
   NSError* error = nil;
-  return ConfigureSession(&error) && StartEngine(&error);
+  return StartEngine(&error);
 }
 
 void StopAndNotify() {
   isRunning = NO;
   isInterrupted = NO;
-  StopEngine(YES);
+  StopEngine();
+  RestoreSession();
   NitroWebrtcVadNotifyAudioInputStopped();
 }
 } // namespace
@@ -205,13 +285,29 @@ void StopAndNotify() {
     NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
     [center addObserver:observer selector:@selector(routeChanged:) name:AVAudioSessionRouteChangeNotification object:nil];
     [center addObserver:observer selector:@selector(interrupted:) name:AVAudioSessionInterruptionNotification object:nil];
+    [center addObserver:observer
+               selector:@selector(engineConfigurationChanged:)
+                   name:AVAudioEngineConfigurationChangeNotification
+                 object:nil];
+  });
+}
+
+- (void)engineConfigurationChanged:(NSNotification*)notification {
+  // AVAudioEngine stops itself when the I/O configuration changes; rebuild it.
+  id changedEngine = notification.object;
+  dispatch_async(Queue(), ^{
+    if (isRunning && !isInterrupted && changedEngine == engine && !RestartEngine()) {
+      StopAndNotify();
+    }
   });
 }
 
 - (void)routeChanged:(NSNotification*)notification {
   (void)notification;
+  // Route changes (speaker override, headphones, category changes by other code) are
+  // not ours to undo. Only bring the engine back if the change stopped it.
   dispatch_async(Queue(), ^{
-    if (isRunning && !isInterrupted && !RestartEngine()) {
+    if (isRunning && !isInterrupted && (engine == nil || !engine.isRunning) && !RestartEngine()) {
       StopAndNotify();
     }
   });
@@ -223,9 +319,12 @@ void StopAndNotify() {
   dispatch_async(Queue(), ^{
     if (type == AVAudioSessionInterruptionTypeBegan && isRunning) {
       isInterrupted = YES;
-      StopEngine(NO);
+      StopEngine();
     } else if (type == AVAudioSessionInterruptionTypeEnded && isRunning && isInterrupted) {
       isInterrupted = NO;
+      if (manageSession) {
+        [[AVAudioSession sharedInstance] setActive:YES error:nil];
+      }
       if (!RestartEngine()) {
         StopAndNotify();
       }
@@ -234,17 +333,23 @@ void StopAndNotify() {
 }
 @end
 
-extern "C" void NitroWebrtcVadStartAudioInput(int sampleRate, size_t frameSamples) {
+extern "C" void NitroWebrtcVadStartAudioInput(int sampleRate, size_t frameSamples, bool manageAudioSession) {
   @autoreleasepool {
     [NitroWebrtcVadAudioObserver install];
 
     __block NSError* error = nil;
     __block BOOL ok = NO;
     dispatch_sync(Queue(), ^{
-      StopEngine(NO);
+      StopEngine();
+      RestoreSession();
       targetSampleRate = sampleRate;
       targetFrameSamples = frameSamples;
-      ok = EnsurePermission(&error) && ConfigureSession(&error) && StartEngine(&error);
+      manageSession = manageAudioSession ? YES : NO;
+      ok = EnsurePermission(&error) && PrepareSession(&error) && StartEngine(&error);
+      if (!ok) {
+        StopEngine();
+        RestoreSession();
+      }
       isRunning = ok;
       isInterrupted = NO;
     });
@@ -261,7 +366,8 @@ extern "C" void NitroWebrtcVadStopAudioInput() {
     dispatch_sync(Queue(), ^{
       isRunning = NO;
       isInterrupted = NO;
-      StopEngine(YES);
+      StopEngine();
+      RestoreSession();
     });
   }
 }

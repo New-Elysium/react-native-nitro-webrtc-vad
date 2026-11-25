@@ -9,7 +9,7 @@
 #endif
 
 #if defined(__APPLE__) && !defined(__ANDROID__)
-extern "C" void NitroWebrtcVadStartAudioInput(int sampleRate, size_t frameSamples);
+extern "C" void NitroWebrtcVadStartAudioInput(int sampleRate, size_t frameSamples, bool manageAudioSession);
 extern "C" void NitroWebrtcVadStopAudioInput();
 #endif
 
@@ -21,7 +21,7 @@ namespace {
 std::mutex activeAudioInputMutex;
 HybridNitroWebrtcVad* activeAudioInputInstance = nullptr;
 
-void platformStartAudioInput(int sampleRate, size_t frameSamples);
+void platformStartAudioInput(int sampleRate, size_t frameSamples, IosAudioSession iosAudioSession);
 void platformStopAudioInput();
 } // namespace
 
@@ -31,7 +31,7 @@ HybridNitroWebrtcVad::~HybridNitroWebrtcVad() {
     resetVadLocked();
 }
 
-void HybridNitroWebrtcVad::start(double mode, double sampleRate, double frameMs, double speechStartFrames, double speechEndFrames) {
+void HybridNitroWebrtcVad::start(double mode, double sampleRate, double frameMs, double speechStartFrames, double speechEndFrames, IosAudioSession iosAudioSession) {
     const int modeValue = static_cast<int>(mode);
     const int sampleRateValue = static_cast<int>(sampleRate);
     const int frameMsValue = static_cast<int>(frameMs);
@@ -80,7 +80,7 @@ void HybridNitroWebrtcVad::start(double mode, double sampleRate, double frameMs,
 
     try {
         setActiveAudioInputInstance();
-        platformStartAudioInput(sampleRate_, frameSamples_);
+        platformStartAudioInput(sampleRate_, frameSamples_, iosAudioSession);
     } catch (...) {
         clearActiveAudioInputInstance();
         resetVadLocked();
@@ -249,7 +249,7 @@ void HybridNitroWebrtcVad::emitEvent(const std::string& eventType) {
 namespace {
 
 #if defined(__ANDROID__)
-void platformStartAudioInput(int sampleRate, size_t frameSamples) {
+void platformStartAudioInput(int sampleRate, size_t frameSamples, IosAudioSession) {
     JNIEnv* env = facebook::jni::Environment::current();
     jclass audioInputClass = env->FindClass("com/nitrowebrtcvad/NitroWebrtcVadAudioInput");
     if (audioInputClass == nullptr) {
@@ -291,15 +291,15 @@ void platformStopAudioInput() {
     }
 }
 #elif defined(__APPLE__)
-void platformStartAudioInput(int sampleRate, size_t frameSamples) {
-    NitroWebrtcVadStartAudioInput(sampleRate, frameSamples);
+void platformStartAudioInput(int sampleRate, size_t frameSamples, IosAudioSession iosAudioSession) {
+    NitroWebrtcVadStartAudioInput(sampleRate, frameSamples, iosAudioSession == IosAudioSession::AUTO);
 }
 
 void platformStopAudioInput() {
     NitroWebrtcVadStopAudioInput();
 }
 #else
-void platformStartAudioInput(int, size_t) {}
+void platformStartAudioInput(int, size_t, IosAudioSession) {}
 void platformStopAudioInput() {}
 #endif
 

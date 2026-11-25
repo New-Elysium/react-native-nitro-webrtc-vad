@@ -7,7 +7,7 @@ This package must remain a normal installable React Native native dependency for
 The intended consumer setup is:
 
 ```sh
-bun add react-native-nitro-webrtc-vad react-native-nitro-modules
+bun add @psync/webrtc-vad react-native-nitro-modules
 npx expo prebuild
 ```
 

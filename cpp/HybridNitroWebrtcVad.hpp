@@ -6,6 +6,7 @@
 #include <vector>
 #include <NitroModules/ArrayBuffer.hpp>
 #include "HybridNitroWebrtcVadSpec.hpp"
+#include "IosAudioSession.hpp"
 
 struct WebRtcVadInst;
 typedef struct WebRtcVadInst VadInst;
@@ -16,7 +17,7 @@ class HybridNitroWebrtcVad : public HybridNitroWebrtcVadSpec {
         HybridNitroWebrtcVad() : HybridObject(TAG), HybridNitroWebrtcVadSpec() {}
         ~HybridNitroWebrtcVad() override;
        
-        void start(double mode, double sampleRate, double frameMs, double speechStartFrames, double speechEndFrames) override;
+        void start(double mode, double sampleRate, double frameMs, double speechStartFrames, double speechEndFrames, IosAudioSession iosAudioSession) override;
         void stop() override;
         void setListener(const std::function<void(const std::string&, double)>& listener) override;
         void clearListener() override;

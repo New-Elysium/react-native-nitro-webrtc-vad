@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Button, PermissionsAndroid, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { NitroWebrtcVad, type VadEventType } from 'react-native-nitro-webrtc-vad';
+import { NitroWebrtcVad, type VadEventType } from '@psync/webrtc-vad';
 
 function App(): React.JSX.Element {
   const [isRunning, setIsRunning] = useState(false);
